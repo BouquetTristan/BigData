@@ -1,0 +1,135 @@
+## TP1 - Big Data
+## Doc : https://docs.mongodb.com/mongodb-shell/
+## Avant de commencer :
+	
+	
+## Premier pas avec MongoDB
+	mongoimport --db myDB_s151803 --collection restaurants --file Ressources/dataset.json --host skinner
+	mongo --host skinner
+	
+	show databases
+	use myDB_s151803
+	show collections
+	db.restaurants.findOne()
+	
+	## Combien y-a-t-il de restaurants ?
+	db.restaurants.count()
+	## Il y a 25359 restaurants
+	
+	## Afficher de deux façons différentes les données du premier restaurant
+	db.collection.findOne(0)
+	db.restaurants.find().limit(1)
+	
+	## Afficher les informations concernant le restaurant dont le *name* est *Nordic Delicacies*
+	db.restaurants.find({"name": "Nordic Delicacies"})
+	
+	## Afficher UNIQUEMENT l'adresse du restaurant dont le *name* est *Nordic Delicacies*
+	db.restaurants.find({"name": "Nordic Delicacies"}, {_id:0, address:1})
+	
+	## Insérez ce nouveau restaurant dans votre collection
+	db.restaurants.insert({"name": "Mon nouveau resto", "address": {"street": "Avenue Laennec", "zipcode" : "72000"}, "borough": "Le Mans", "cuisine": "trop bonne"})
+	## Il y a à présent 25360 restaurants
+	
+	## Combien de restaurants font des hamburgers
+	db.restaurants.count("cuisine" : "Hamburgers"})
+	## Il y en a 433
+	
+	## Parmis ceux-là combien dans le Borough de Brooklyn
+	db.restaurants.count({"cuisine" : "Hamburgers", "borough": "Brooklyn"})
+	## Il y en a 102
+	
+	## Parmis ceux-là, sélectionner ceux avec un score de 8
+	db.restaurants.find({"cuisine" : "Hamburgers", "borough": "Brooklyn", "grades.score": 8})
+	
+	## Retourner la liste des restaurants dont le nom commence par un T, et sans afficher ni l’address, ni les grades.
+	db.restaurants.find({"name" : /^T/}, {address:0, grades:0})
+	
+	## Retourner les informations concernant le restaurant de restaurant_id le plus faible
+	db.restaurants.find().sort({"_id":1}).limit(1)
+	
+	## Ajouter l'attribut "attribut_sup" de valeur 0 dans le nouveau restaurant
+	db.restaurants.update({name:"Mon nouveau resto"},{$set:{"attribut_sup":0}})
+	
+	## Ajouter une note de grade D et de score 1 dans le nouveau restaurant
+	db.restaurants.update({name:"Mon nouveau resto"},{$set:{grades: [{grade: "D", score:1}]}})
+	
+	## Supprimer le nouveau resto de votre base de données
+	db.restaurants.remove({name: "Mon nouveau resto"})
+	
+	## Requête qui retourne le nombre de restaurants pour chaque zipcode correspondant
+	db.restaurants.aggregate([{$group:{_id:"$address.zipcode", total: {$sum:1}}}])
+	
+	## Modifier pour n'afficher que les 5 premiers résultats
+	db.restaurants.aggregate([{$group:{_id:"$address.zipcode", total: {$sum:1}}}, {$limit:5}])
+	
+	## Modifier pour les trier par zipcode croissant
+	db.restaurants.aggregate([{$group:{_id:"$address.zipcode", total: {$sum:1}}}, {$sort:{_id:1}}, {$limit:5}])
+	
+	## Modifier pour ne prendre que la cuisine avec des Hamburgers
+	db.restaurants.aggregate([{$match:{"cuisine":"Hamburgers"}}, {$group:{_id:"$address.zipcode", total: {$sum:1}}}, {$sort:{_id:1}}, {$limit:5}])
+
+	## Modifier et supprimer limit et stocker le résultat dans une nouvelle collection *comptage*
+	db.restaurants.aggregate([{$match:{"cuisine":"Hamburgers"}}, {$group:{_id:"$address.zipcode", total: {$sum:1}}}, {$sort:{_id:1}}, {$out:{db : "myDB_s151803", coll: "comptage"}}])
+
+	## Afficher les 10 zipcode les plus fréquents en utilisant la collection comptage
+	db.comptage.find().sort({_id:1}).limit(10)
+	db.comptage.aggregate([{$sort:{total:-1}}, {$limit:10}])
+	
+	## Afficher le zipcode dont le nombre d'occurence est supérieur à 5
+	db.comptage.find({"total" : {$gt : 5}})
+	db.comptage.aggregate([{$match:{"total": {$gt:5}}}])
+
+	## Copier cette mapReduce et observer les résultats
+	db.restaurants.mapReduce(
+		function() { emit(this.cuisine, 1);},
+		function(key, values) {return Array.sum(values)},
+		{
+			out: "comptage"
+		}
+	)
+	## Elle regroupe tous les restaurants par leur cuisine et indique leurs nombre pour chaque cuisine
+	
+	## La modifier et retourner le nombre de restaurant pour chaque *borough*
+	db.restaurants.mapReduce(
+		function() { emit(this.borough, 1);},
+		function(key, values) {return Array.sum(values)},
+		{
+			out: "comptage"
+		}
+	)
+	
+	## La modifier et retourner le nombre de restaurant pour chaque zipcode
+	db.restaurants.mapReduce(
+		function() { emit(this.address.zipcode, 1);},
+		function(key, values) {return Array.sum(values)},
+		{
+			out: "comptage"
+		}
+	)
+	
+	## La modifier pour ne prendre que les cuisines de Hamburgers
+	db.restaurants.mapReduce(
+		function() { emit(this.address.zipcode, 1);},
+		function(key, values) {return Array.sum(values)},
+		{
+			query: {"cuisine":"Hamburgers"},
+			out: "comptage"
+		}
+	)
+
+	## Modifier la map qui utilise les cuisines comme _id et retourner la somme des score des restaurants pour chaque zipcode
+	db.restaurants.mapReduce(
+		function() {
+			sum = this.grades.reduce(function (a,b) {return a + b.score},0);
+			emit(this.address.zipcode, sum);
+		},
+		function(key, values) {
+			return Array.sum(values)
+		},
+		
+		{
+			out: "comptage"
+		}
+	)
+	
+	
